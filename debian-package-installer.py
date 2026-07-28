@@ -40,6 +40,15 @@ def main() -> None:
         help='After downloading, package everything into a self-installing .tar.gz at this path.'
     )
     parser.add_argument(
+        '--keep-going',
+        action='store_true',
+        help=(
+            'Do not abort when a requested package cannot be resolved (e.g. a typo or a\n'
+            'custom/vendor .deb not in the sources). Warn, skip that package, continue with\n'
+            'the rest, and print a summary. Default: stop on the first failure.'
+        )
+    )
+    parser.add_argument(
         '--verify-deb-metadata',
         action='store_true',
         help=(
@@ -59,22 +68,35 @@ def main() -> None:
     reporter = ConsoleReporter()
 
     try:
-        target_arch, _visited = resolve_and_download(
+        target_arch, visited, failures = resolve_and_download(
             args.packages,
             base_urls,
             repo_dir=args.repo_dir,
             download_dir=args.download_dir,
             reporter=reporter,
             verify_deb_metadata=args.verify_deb_metadata,
+            keep_going=args.keep_going,
         )
     except Exception as e:
         raise SystemExit(f"\nCRITICAL ERROR: {e}")
 
-    print("\nAll dependencies processed.")
+    # Summary. With --keep-going, skipped packages are reported here rather than
+    # having aborted the run.
+    succeeded = [p for p in args.packages if p not in {name for name, _ in failures}]
+    print(f"\nDone. Requested: {len(args.packages)}, "
+          f"resolved: {len(succeeded)}, skipped: {len(failures)}. "
+          f"{len(visited)} .deb file(s) downloaded.")
+    if failures:
+        print("Skipped packages (not found or unresolvable):")
+        for name, reason in failures:
+            print(f"  - {name}: {reason.strip().splitlines()[0] if reason.strip() else 'unknown reason'}")
 
     if args.bundle:
+        if not visited:
+            print("\nNothing was downloaded, so no bundle was built.")
+            return
         try:
-            build_bundle(args.download_dir, args.bundle, target_arch, args.packages, reporter)
+            build_bundle(args.download_dir, args.bundle, target_arch, succeeded, reporter)
         except Exception as e:
             raise SystemExit(f"\nCRITICAL ERROR while building bundle: {e}")
 

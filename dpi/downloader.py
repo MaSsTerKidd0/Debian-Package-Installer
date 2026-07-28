@@ -200,7 +200,8 @@ def fetch_dependencies_recursive(
     if not top_pkg:
         raise RuntimeError(
             f"Top-level package '{initial_pkg_name}' could not be resolved for arch "
-            f"{target_arch}. This means:\n"
+            f"{target_arch}.\n"
+            f"Possible reasons:\n"
             f" - The package isn't in ./repository for this arch,\n"
             f" - or it only exists as a virtual with no valid provider,\n"
             f" - or only exists for a different arch than {target_arch}.\n"

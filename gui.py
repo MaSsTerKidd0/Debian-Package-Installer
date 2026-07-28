@@ -142,6 +142,14 @@ class App:
         ).grid(row=row, column=0, columnspan=3, sticky="w", **pad)
 
         row += 1
+        self.keepgoing_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            frm,
+            text="Skip packages that can't be resolved (warn and continue) — e.g. typos or custom/vendor .debs",
+            variable=self.keepgoing_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", **pad)
+
+        row += 1
         self.run_btn = ttk.Button(frm, text="Build Offline Bundle", command=self._start)
         self.run_btn.grid(row=row, column=0, columnspan=3, sticky="ew", **pad)
 
@@ -229,6 +237,7 @@ class App:
 
         preset = PRESETS[self.os_var.get()]
         do_update = self.update_var.get()
+        keep_going = self.keepgoing_var.get()
 
         self.run_btn.configure(state="disabled")
         self.progress.configure(value=0)
@@ -236,11 +245,11 @@ class App:
         self._append_log("=" * 60)
 
         self.worker = threading.Thread(
-            target=self._work, args=(preset, packages, output, do_update), daemon=True
+            target=self._work, args=(preset, packages, output, do_update, keep_going), daemon=True
         )
         self.worker.start()
 
-    def _work(self, preset, packages, output, do_update):
+    def _work(self, preset, packages, output, do_update, keep_going):
         """Runs on the worker thread. Only touches the UI via self.q."""
         def log(msg):
             self.q.put(("log", msg))
@@ -267,18 +276,27 @@ class App:
                     )
 
             self.q.put(("status", "Resolving and downloading dependencies…"))
-            target_arch, visited = resolve_and_download(
+            target_arch, visited, failures = resolve_and_download(
                 packages,
                 preset["download_base_urls"],
                 repo_dir=repo_dir,
                 download_dir=download_dir,
                 reporter=reporter,
+                keep_going=keep_going,
             )
 
-            self.q.put(("status", "Building bundle…"))
-            build_bundle(download_dir, output, target_arch, packages, reporter)
+            if not visited:
+                # Everything was skipped -- nothing to package.
+                self.q.put(("error",
+                            "No packages could be resolved, so no bundle was built.\n"
+                            "Check the names, or that the index matches your target OS."))
+                return
 
-            self.q.put(("done", output, len(visited)))
+            self.q.put(("status", "Building bundle…"))
+            succeeded = [p for p in packages if p not in {n for n, _ in failures}]
+            build_bundle(download_dir, output, target_arch, succeeded, reporter)
+
+            self.q.put(("done", output, len(visited), failures))
         except Exception as e:
             self.q.put(("error", str(e)))
 
@@ -298,14 +316,26 @@ class App:
                     self.progress.configure(value=pct)
                     self.status_var.set(f"Downloading… {done} of ~{total} packages")
                 elif kind == "done":
-                    output, count = item[1], item[2]
+                    output, count, failures = item[1], item[2], item[3]
                     self.progress.configure(value=100)
-                    self.status_var.set(f"Done — {count} packages bundled.")
+                    skipped_note = f" ({len(failures)} skipped)" if failures else ""
+                    self.status_var.set(f"Done — {count} packages bundled{skipped_note}.")
                     self._append_log(f"\nBundle ready: {output}")
+                    if failures:
+                        self._append_log("Skipped (not found or unresolvable):")
+                        for name, reason in failures:
+                            first = reason.strip().splitlines()[0] if reason.strip() else "unknown reason"
+                            self._append_log(f"  - {name}: {first}")
                     self.run_btn.configure(state="normal")
+                    skipped_msg = ""
+                    if failures:
+                        skipped_msg = (
+                            f"\n\nSkipped {len(failures)} package(s) that couldn't be resolved:\n"
+                            + "\n".join(f"  • {name}" for name, _ in failures)
+                        )
                     messagebox.showinfo(
                         "Bundle complete",
-                        f"Wrote {count} packages to:\n{output}\n\n"
+                        f"Wrote {count} packages to:\n{output}{skipped_msg}\n\n"
                         "On the target machine:\n"
                         "  tar xzf <bundle>.tar.gz\n"
                         "  cd <bundle>/\n"

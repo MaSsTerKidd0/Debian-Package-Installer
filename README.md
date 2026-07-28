@@ -56,6 +56,11 @@ choose where to save the `.tar.gz`, and click **Build Offline Bundle**. A progre
 bar and live log show what's happening. The result is a single self-installing
 archive — see [Offline bundles](#offline-bundles) below.
 
+The **"Skip packages that can't be resolved"** checkbox (on by default) warns and
+continues past names that aren't in the sources — handy for typos or custom/vendor
+`.deb`s — and lists what it skipped at the end. Untick it to stop on the first
+failure instead.
+
 The GUI needs nothing beyond the standard library (it uses Tkinter, which ships
 with Python) plus the two libraries in Requirements.
 
@@ -113,6 +118,12 @@ python3 debian-package-installer.py --packages ffmpeg
 Optional flags:
  * `--bundle OUTPUT.tar.gz` — after downloading, package everything into a
    self-installing archive (see [Offline bundles](#offline-bundles)).
+ * `--keep-going` — don't abort when a requested package can't be resolved (a
+   typo, or a custom/vendor `.deb` that was never in the Debian sources). Instead,
+   print a warning, skip that package, carry on with the rest, and show a summary
+   of what was skipped. By default the run stops on the first failure. A requested
+   package is skipped in full — if part of its dependency tree is unresolvable, the
+   whole package is left out rather than shipping a tree that won't install.
  * `--repo-dir` / `--download-dir` — override the default `./repository` and
    `./downloaded` locations.
  * `--verify-deb-metadata` — after each download, open the `.deb` and confirm its

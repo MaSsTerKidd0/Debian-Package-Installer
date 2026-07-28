@@ -24,6 +24,12 @@ class Reporter:
     def log(self, message: str) -> None:
         pass
 
+    def warn(self, message: str) -> None:
+        """A non-fatal problem the user should see. Routed through log() with a
+        prefix by default, so any Reporter gets warnings for free; subclasses may
+        override to render them distinctly (e.g. colored in a GUI)."""
+        self.log(f"WARNING: {message}")
+
     def progress(self, done: int, total: int) -> None:
         pass
 

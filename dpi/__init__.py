@@ -35,14 +35,25 @@ def resolve_and_download(
     download_dir: str = config.DOWNLOAD_DIR,
     reporter: Reporter = None,
     verify_deb_metadata: bool = False,
-) -> Tuple[str, Set[Tuple[str, str, str]]]:
+    keep_going: bool = False,
+) -> Tuple[str, Set[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """
     Build the index from `repo_dir`, then resolve and download every package in
     `package_names` together with its full transitive dependency closure into
     `download_dir`.
 
-    Returns (target_arch, visited_pkgkeys) where visited_pkgkeys is the set of
-    (name, version, arch) tuples actually downloaded -- useful for reporting.
+    Returns (target_arch, visited_pkgkeys, failures):
+      - visited_pkgkeys: set of (name, version, arch) tuples actually downloaded.
+      - failures: list of (requested_name, reason) for packages that could not
+        be fully resolved.
+
+    keep_going controls what happens on a failure:
+      - False (default): the first failure raises, aborting the whole run.
+      - True: warn, record the failed requested package, and move on to the next.
+        Granularity is the whole requested package -- if any part of its tree is
+        unresolvable, the package is skipped in full (we never ship a partial,
+        won't-install tree). .debs already downloaded for it stay cached and
+        harmlessly ride along in the bundle.
 
     This is the single orchestration point shared by the CLI and the GUI so the
     two can never drift apart in behavior.
@@ -50,20 +61,34 @@ def resolve_and_download(
     if reporter is None:
         reporter = ConsoleReporter()
 
+    # Index/arch problems are always fatal: without a valid index there is
+    # nothing to resolve against, and keep_going can't paper over that.
     pkgs_by_name, provides_index, target_arch = build_package_index(repo_dir, reporter)
 
     visited: Set[Tuple[str, str, str]] = set()
-    for name in package_names:
-        fetch_dependencies_recursive(
-            name,
-            target_arch,
-            pkgs_by_name,
-            provides_index,
-            base_urls,
-            visited,
-            download_dir,
-            reporter,
-            verify_deb_metadata,
-        )
+    failures: List[Tuple[str, str]] = []
 
-    return target_arch, visited
+    for name in package_names:
+        try:
+            fetch_dependencies_recursive(
+                name,
+                target_arch,
+                pkgs_by_name,
+                provides_index,
+                base_urls,
+                visited,
+                download_dir,
+                reporter,
+                verify_deb_metadata,
+            )
+        except Exception as e:
+            if not keep_going:
+                raise
+            # Skip this requested package but keep processing the rest. Likely a
+            # typo or a package that simply isn't in the indexed sources (e.g. a
+            # custom/vendor .deb built outside the archive).
+            reason = str(e).strip().splitlines()[0] if str(e).strip() else e.__class__.__name__
+            reporter.warn(f"Skipping '{name}': {reason}")
+            failures.append((name, str(e)))
+
+    return target_arch, visited, failures
