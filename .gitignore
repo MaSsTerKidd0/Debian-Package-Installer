@@ -1,2 +1,5 @@
 /repository
 /downloaded
+__pycache__/
+*.pyc
+*.tar.gz
