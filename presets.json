@@ -1,0 +1,68 @@
+{
+  "Ubuntu 24.04 LTS Noble (amd64)": {
+    "platform": "binary-amd64",
+    "index_sources": [
+      {
+        "base_url": "https://archive.ubuntu.com/ubuntu/dists",
+        "suites": ["noble", "noble-updates", "noble-security", "noble-backports"],
+        "components": ["main", "restricted", "universe", "multiverse"]
+      }
+    ],
+    "download_base_urls": ["https://archive.ubuntu.com/ubuntu"]
+  },
+  "Ubuntu 26.04 LTS Resolute (amd64)": {
+    "platform": "binary-amd64",
+    "index_sources": [
+      {
+        "base_url": "https://archive.ubuntu.com/ubuntu/dists",
+        "suites": ["resolute", "resolute-updates", "resolute-security", "resolute-backports"],
+        "components": ["main", "restricted", "universe", "multiverse"]
+      }
+    ],
+    "download_base_urls": ["https://archive.ubuntu.com/ubuntu"]
+  },
+  "Debian 12 Bookworm (arm64)": {
+    "platform": "binary-arm64",
+    "index_sources": [
+      {
+        "base_url": "http://deb.debian.org/debian/dists",
+        "suites": ["bookworm", "bookworm-updates"],
+        "components": ["main", "contrib", "non-free", "non-free-firmware"]
+      },
+      {
+        "base_url": "http://deb.debian.org/debian-security/dists",
+        "suites": ["bookworm-security"],
+        "components": ["main", "contrib", "non-free", "non-free-firmware"]
+      }
+    ],
+    "download_base_urls": [
+      "http://deb.debian.org/debian",
+      "http://deb.debian.org/debian-security"
+    ]
+  },
+  "Raspberry Pi OS Legacy Bookworm 64-bit (arm64)": {
+    "platform": "binary-arm64",
+    "index_sources": [
+      {
+        "base_url": "http://deb.debian.org/debian/dists",
+        "suites": ["bookworm", "bookworm-updates"],
+        "components": ["main", "contrib", "non-free", "non-free-firmware"]
+      },
+      {
+        "base_url": "http://deb.debian.org/debian-security/dists",
+        "suites": ["bookworm-security"],
+        "components": ["main", "contrib", "non-free", "non-free-firmware"]
+      },
+      {
+        "base_url": "http://archive.raspberrypi.com/debian/dists",
+        "suites": ["bookworm"],
+        "components": ["main"]
+      }
+    ],
+    "download_base_urls": [
+      "http://archive.raspberrypi.com/debian",
+      "http://deb.debian.org/debian",
+      "http://deb.debian.org/debian-security"
+    ]
+  }
+}

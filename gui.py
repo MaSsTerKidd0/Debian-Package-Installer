@@ -22,80 +22,24 @@ from tkinter import filedialog, messagebox, ttk
 
 from dpi import config, resolve_and_download
 from dpi.packager import build_bundle
+from dpi.presets import load_presets
 from dpi.reporter import CallbackReporter
 from dpi.repository import update_repository
+from dpi.starter_kits import load_starter_kits, merge_packages
 
 
-# ---------------------------------------------------------------------------
-# OS presets. Each bundles the index sources (for the "update" step) and the
-# download mirrors (for fetching .debs). "index_sources" may have several
-# entries -- e.g. Raspberry Pi pulls from Debian, Debian-security, and the RPi
-# Foundation repo -- which is why this can't be a single base URL.
-# ---------------------------------------------------------------------------
-PRESETS = {
-    "Ubuntu 24.04 LTS (amd64)": {
-        "platform": "binary-amd64",
-        "index_sources": [
-            {
-                "base_url": "https://us.archive.ubuntu.com/ubuntu/dists",
-                "suites": ["noble", "noble-updates", "noble-security", "noble-backports"],
-                "components": ["main", "restricted", "universe", "multiverse"],
-            },
-        ],
-        "download_base_urls": ["https://archive.ubuntu.com/ubuntu"],
-    },
-    "Debian 12 Bookworm (arm64)": {
-        "platform": "binary-arm64",
-        "index_sources": [
-            {
-                "base_url": "http://deb.debian.org/debian/dists",
-                "suites": ["bookworm", "bookworm-updates"],
-                "components": ["main", "contrib", "non-free", "non-free-firmware"],
-            },
-            {
-                "base_url": "http://deb.debian.org/debian-security/dists",
-                "suites": ["bookworm-security"],
-                "components": ["main", "contrib", "non-free", "non-free-firmware"],
-            },
-        ],
-        "download_base_urls": [
-            "http://deb.debian.org/debian",
-            "http://deb.debian.org/debian-security",
-        ],
-    },
-    "Raspberry Pi OS Legacy Bookworm 64-bit (arm64)": {
-        "platform": "binary-arm64",
-        "index_sources": [
-            {
-                "base_url": "http://deb.debian.org/debian/dists",
-                "suites": ["bookworm", "bookworm-updates"],
-                "components": ["main", "contrib", "non-free", "non-free-firmware"],
-            },
-            {
-                "base_url": "http://deb.debian.org/debian-security/dists",
-                "suites": ["bookworm-security"],
-                "components": ["main", "contrib", "non-free", "non-free-firmware"],
-            },
-            {
-                "base_url": "http://archive.raspberrypi.com/debian/dists",
-                "suites": ["bookworm"],
-                "components": ["main"],
-            },
-        ],
-        "download_base_urls": [
-            "http://archive.raspberrypi.com/debian",
-            "http://deb.debian.org/debian",
-            "http://deb.debian.org/debian-security",
-        ],
-    },
-}
+# The dropdowns are loaded from editable JSON (presets.json / starter_kits.json).
+# Default both to a Raspberry Pi entry if one exists.
+_DEFAULT_PICK_HINT = "raspberry pi"
 
 
 class App:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: tk.Tk, presets: dict, kits: dict):
         self.root = root
+        self.presets = presets
+        self.kits = kits
         root.title("Debian Package Installer")
-        root.minsize(640, 620)
+        root.minsize(640, 660)
 
         # Messages from the worker thread land here; the main loop drains them.
         self.q: "queue.Queue[tuple]" = queue.Queue()
@@ -103,6 +47,16 @@ class App:
 
         self._build_widgets()
         self.root.after(100, self._drain_queue)
+
+    def _default_by_hint(self, options) -> str:
+        """Prefer an entry mentioning Raspberry Pi if present, else the first."""
+        for name in options:
+            if _DEFAULT_PICK_HINT in name.lower():
+                return name
+        return next(iter(options))
+
+    def _default_os(self) -> str:
+        return self._default_by_hint(self.presets)
 
     # -- layout -------------------------------------------------------------
     def _build_widgets(self):
@@ -113,9 +67,9 @@ class App:
 
         row = 0
         ttk.Label(frm, text="Target OS:").grid(row=row, column=0, sticky="w", **pad)
-        self.os_var = tk.StringVar(value=list(PRESETS.keys())[-1])  # default: RPi
+        self.os_var = tk.StringVar(value=self._default_os())
         os_combo = ttk.Combobox(frm, textvariable=self.os_var,
-                                values=list(PRESETS.keys()), state="readonly")
+                                values=list(self.presets.keys()), state="readonly")
         os_combo.grid(row=row, column=1, columnspan=2, sticky="ew", **pad)
 
         row += 1
@@ -126,6 +80,38 @@ class App:
         btns.grid(row=row, column=2, sticky="n", **pad)
         ttk.Button(btns, text="Load list…", command=self._load_list).pack(fill="x", pady=2)
         ttk.Button(btns, text="Clear", command=lambda: self.pkg_text.delete("1.0", "end")).pack(fill="x", pady=2)
+
+        # Essential packages (starter kit) + machine-type picker.
+        row += 1
+        self.essentials_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm,
+            text="Include essential packages",
+            variable=self.essentials_var,
+            command=self._toggle_machine,
+        ).grid(row=row, column=0, sticky="w", **pad)
+        self.machine_var = tk.StringVar(value=self._default_by_hint(self.kits))
+        self.machine_combo = ttk.Combobox(
+            frm, textvariable=self.machine_var,
+            values=list(self.kits.keys()), state="disabled",
+        )
+        self.machine_combo.grid(row=row, column=1, columnspan=2, sticky="ew", **pad)
+        self.machine_combo.bind("<<ComboboxSelected>>", lambda e: self._update_kit_desc())
+
+        row += 1
+        self.kit_desc_var = tk.StringVar(value="")
+        ttk.Label(frm, textvariable=self.kit_desc_var, foreground="#666",
+                  wraplength=560, justify="left").grid(
+            row=row, column=1, columnspan=2, sticky="w", padx=8)
+
+        # Standalone toggle for OpenSSH (handy even without a full starter kit).
+        row += 1
+        self.ssh_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm,
+            text="Include OpenSSH server (remote access via ssh)",
+            variable=self.ssh_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", **pad)
 
         row += 1
         ttk.Label(frm, text="Output bundle:").grid(row=row, column=0, sticky="w", **pad)
@@ -174,6 +160,21 @@ class App:
         self.log.configure(yscrollcommand=sb.set)
 
     # -- small UI helpers ---------------------------------------------------
+    def _toggle_machine(self):
+        """Enable the machine picker only while essentials are requested."""
+        self.machine_combo.configure(
+            state="readonly" if self.essentials_var.get() else "disabled"
+        )
+        self._update_kit_desc()
+
+    def _update_kit_desc(self):
+        if self.essentials_var.get():
+            kit = self.kits.get(self.machine_var.get(), {})
+            n = len(kit.get("packages", []))
+            self.kit_desc_var.set(f"{kit.get('description', '')}  ({n} packages)")
+        else:
+            self.kit_desc_var.set("")
+
     def _load_list(self):
         path = filedialog.askopenfilename(
             title="Choose a file listing package names",
@@ -226,16 +227,31 @@ class App:
     def _start(self):
         if self.worker and self.worker.is_alive():
             return
-        packages = self._packages()
+
+        # Base list from the text box, then fold in any add-ons the user ticked.
+        user_packages = self._packages()
+
+        add_ons = []
+        machine = None
+        if self.essentials_var.get():
+            machine = self.machine_var.get()
+            add_ons += self.kits.get(machine, {}).get("packages", [])
+        if self.ssh_var.get():
+            add_ons.append("openssh-server")
+
+        packages = merge_packages(user_packages, add_ons)
         if not packages:
-            messagebox.showwarning("No packages", "Enter at least one package name.")
+            messagebox.showwarning(
+                "No packages",
+                "Enter at least one package name, or tick 'Include essential packages' / OpenSSH.",
+            )
             return
         output = self.out_var.get().strip()
         if not output:
             messagebox.showwarning("No output path", "Choose where to save the bundle.")
             return
 
-        preset = PRESETS[self.os_var.get()]
+        preset = self.presets[self.os_var.get()]
         do_update = self.update_var.get()
         keep_going = self.keepgoing_var.get()
 
@@ -243,6 +259,11 @@ class App:
         self.progress.configure(value=0)
         self.status_var.set("Working…")
         self._append_log("=" * 60)
+        extra = len(packages) - len(user_packages)
+        if extra > 0:
+            src = f"'{machine}' kit" if machine else "add-ons"
+            self._append_log(f"Added {extra} extra package(s) from {src} "
+                             f"(missing ones will be skipped if keep-going is on).")
 
         self.worker = threading.Thread(
             target=self._work, args=(preset, packages, output, do_update, keep_going), daemon=True
@@ -354,7 +375,32 @@ class App:
 
 def main():
     root = tk.Tk()
-    App(root)
+    # Load presets before building the UI; a malformed presets.json should be a
+    # clear message, not a stack trace, and we fall back to built-in defaults so
+    # the app still opens.
+    try:
+        presets = load_presets()
+    except Exception as e:
+        from dpi.presets import DEFAULT_PRESETS
+        messagebox.showwarning(
+            "Could not load presets.json",
+            f"{e}\n\nFalling back to built-in defaults. Fix presets.json and relaunch "
+            "to use your custom targets.",
+        )
+        presets = DEFAULT_PRESETS
+
+    try:
+        kits = load_starter_kits()
+    except Exception as e:
+        from dpi.starter_kits import DEFAULT_STARTER_KITS
+        messagebox.showwarning(
+            "Could not load starter_kits.json",
+            f"{e}\n\nFalling back to built-in defaults. Fix starter_kits.json and relaunch "
+            "to use your custom kits.",
+        )
+        kits = DEFAULT_STARTER_KITS
+
+    App(root, presets, kits)
     root.mainloop()
 
 

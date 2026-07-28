@@ -50,11 +50,11 @@ If you'd rather not touch the command line, run the graphical version:
 python3 gui.py
 ```
 
-Then: pick your **Target OS** (presets for Ubuntu 24.04, Debian 12 Bookworm, and
-Raspberry Pi OS Legacy Bookworm 64-bit), type or **load a list** of package names,
-choose where to save the `.tar.gz`, and click **Build Offline Bundle**. A progress
-bar and live log show what's happening. The result is a single self-installing
-archive — see [Offline bundles](#offline-bundles) below.
+Then: pick your **Target OS** (presets for Ubuntu 24.04 Noble, Ubuntu 26.04
+Resolute, Debian 12 Bookworm, and Raspberry Pi OS Legacy Bookworm 64-bit), type or
+**load a list** of package names, choose where to save the `.tar.gz`, and click
+**Build Offline Bundle**. A progress bar and live log show what's happening. The
+result is a single self-installing archive — see [Offline bundles](#offline-bundles) below.
 
 The **"Skip packages that can't be resolved"** checkbox (on by default) warns and
 continues past names that aren't in the sources — handy for typos or custom/vendor
@@ -63,6 +63,60 @@ failure instead.
 
 The GUI needs nothing beyond the standard library (it uses Tkinter, which ships
 with Python) plus the two libraries in Requirements.
+
+### Adding your own target OS
+
+The dropdown is driven by [presets.json](./presets.json) — edit it and relaunch,
+no code changes needed. Each preset lists the index sources (one entry per origin)
+and the download mirrors:
+
+```json
+"My Target (amd64)": {
+  "platform": "binary-amd64",
+  "index_sources": [
+    { "base_url": "https://archive.ubuntu.com/ubuntu/dists",
+      "suites": ["noble", "noble-updates", "noble-security", "noble-backports"],
+      "components": ["main", "restricted", "universe", "multiverse"] }
+  ],
+  "download_base_urls": ["https://archive.ubuntu.com/ubuntu"]
+}
+```
+
+**Finding the right `suites`:** a *suite* (Debian/apt term; Ubuntu docs call it the
+"release" or "codename") is the lowercase adjective of the release codename — Noble
+Numbat → `noble`, Resolute Raccoon (26.04) → `resolute` — with the pockets
+`-updates`, `-security`, `-backports`. The authoritative list is the archive's own
+`dists/` directory: open your `base_url` in a browser (e.g.
+`http://archive.ubuntu.com/ubuntu/dists/`) and every folder there is a valid suite.
+On a running machine, `lsb_release -cs` prints the codename. Skip the `-proposed`
+pocket — it's for testing candidate updates, not normal installs. (Desktop and
+Server share the same suites; only the preinstalled package set differs.)
+
+### Essential packages (starter kits)
+
+Tick **"Include essential packages"** and pick a **machine type** to fold a
+ready-made set of support packages into your download — so a fresh target comes up
+with Wi-Fi, firmware, audio, and SSD tools already present. Built-in kits:
+
+| Machine type | Includes |
+|---|---|
+| **PC / Laptop** | Networking + Wi-Fi, firmware, open-source GPU (Mesa), audio (PipeWire), Bluetooth, SSD tools |
+| **Tablet / Touch** | PC set + touchscreen input, on-screen keyboard, auto-rotate sensors |
+| **Server / Headless** | SSH, wired networking, firewall, SSD tools, basic ops utilities |
+| **Raspberry Pi** | Pi Wi-Fi/Bluetooth firmware + networking, SSD/NVMe tools for a HAT |
+
+There's also a standalone **"Include OpenSSH server"** checkbox for remote access.
+
+The kits are defined in [starter_kits.json](./starter_kits.json) — fully editable,
+same as presets. Two things to know:
+ * **Package names differ across distros** (Ubuntu ships one `linux-firmware`;
+   Debian splits it into `firmware-*` under `non-free-firmware`). Each kit lists
+   both families and relies on keep-going to skip the names that don't exist on
+   your chosen target — so keep **"Skip packages that can't be resolved"** ticked.
+ * Debian firmware packages live in the `non-free-firmware` component, which the
+   Debian and Raspberry Pi presets already include.
+ * The proprietary NVIDIA driver is intentionally **not** in any kit (license +
+   size); add `nvidia-driver` yourself if you need it.
 
 ## Usage (command line)
 
@@ -166,6 +220,8 @@ and warns if the target's architecture differs from what the bundle was built fo
 ## Project layout
 
  * [gui.py](./gui.py): Tkinter GUI front end.
+ * [presets.json](./presets.json): editable target-OS presets used by the GUI dropdown.
+ * [starter_kits.json](./starter_kits.json): editable per-machine "essential package" sets.
  * [update_repository.py](./update_repository.py): CLI to download and prepare package lists.
  * [debian-package-installer.py](debian-package-installer.py): CLI to download a package, its dependencies, and optionally build a bundle.
  * [dpi/](./dpi/): the library the entry points share —
