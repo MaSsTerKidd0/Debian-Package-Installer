@@ -1,0 +1,42 @@
+{
+  "PC / Laptop": {
+    "description": "Wi-Fi + wired networking, common firmware, open-source GPU acceleration, audio, Bluetooth, and SSD tools.",
+    "packages": [
+      "network-manager", "wpasupplicant", "iw", "ethtool", "rfkill",
+      "linux-firmware", "firmware-iwlwifi", "firmware-realtek", "firmware-atheros", "firmware-misc-nonfree",
+      "libgl1-mesa-dri", "mesa-utils", "mesa-vulkan-drivers",
+      "pipewire", "pipewire-pulse", "wireplumber", "alsa-utils",
+      "bluez",
+      "nvme-cli", "smartmontools", "hdparm"
+    ]
+  },
+  "Tablet / Touch": {
+    "description": "PC networking/firmware/audio plus touchscreen input, an on-screen keyboard, and auto-rotate sensors.",
+    "packages": [
+      "network-manager", "wpasupplicant", "iw", "rfkill",
+      "linux-firmware", "firmware-iwlwifi", "firmware-realtek",
+      "xserver-xorg-input-libinput", "libinput-tools",
+      "onboard", "iio-sensor-proxy",
+      "libgl1-mesa-dri", "mesa-utils",
+      "pipewire", "pipewire-pulse", "wireplumber", "alsa-utils",
+      "bluez",
+      "nvme-cli", "smartmontools"
+    ]
+  },
+  "Server / Headless": {
+    "description": "No GUI. SSH, wired networking, storage/SSD health, a firewall, and basic ops tools.",
+    "packages": [
+      "openssh-server", "ifupdown", "ethtool",
+      "nvme-cli", "smartmontools", "hdparm",
+      "ufw", "htop", "curl", "ca-certificates", "rsync"
+    ]
+  },
+  "Raspberry Pi": {
+    "description": "Pi Wi-Fi/Bluetooth firmware and networking, plus SSD/NVMe tools for a HAT or USB drive.",
+    "packages": [
+      "network-manager", "wpasupplicant",
+      "firmware-brcm80211", "bluez",
+      "nvme-cli", "smartmontools"
+    ]
+  }
+}
