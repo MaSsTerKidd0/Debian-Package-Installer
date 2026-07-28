@@ -107,6 +107,21 @@ with Wi-Fi, firmware, audio, and SSD tools already present. Built-in kits:
 
 There's also a standalone **"Include OpenSSH server"** checkbox for remote access.
 
+**From the command line**, the same kits are available via `--machine` (and `--ssh`):
+
+```sh
+# See the choices
+python3 debian-package-installer.py --list-machines
+
+# ffmpeg PLUS the Raspberry Pi essentials PLUS an SSH server, as a bundle
+python3 debian-package-installer.py \
+  --base-url http://archive.raspberrypi.com/debian,http://deb.debian.org/debian,http://deb.debian.org/debian-security \
+  --packages ffmpeg --machine pi --ssh --bundle pi-kit.tar.gz
+
+# Just the PC starter kit, nothing else
+python3 debian-package-installer.py --machine pc
+```
+
 The kits are defined in [starter_kits.json](./starter_kits.json) — fully editable,
 same as presets. Two things to know:
  * **Package names differ across distros** (Ubuntu ships one `linux-firmware`;
@@ -172,6 +187,13 @@ python3 debian-package-installer.py --packages ffmpeg
 Optional flags:
  * `--bundle OUTPUT.tar.gz` — after downloading, package everything into a
    self-installing archive (see [Offline bundles](#offline-bundles)).
+ * `--machine TYPE` — also pull in the [essential-packages starter kit](#essential-packages-starter-kits)
+   for a machine type. `TYPE` is matched case-insensitively against
+   `starter_kits.json` (so `--machine pi`, `--machine pc`, `--machine server`,
+   `--machine tablet` all work). Implies `--keep-going`, because kit names span
+   distros and the non-matching ones are meant to be skipped.
+ * `--ssh` — also include the OpenSSH server (`openssh-server`).
+ * `--list-machines` — print the available starter-kit machine types and exit.
  * `--keep-going` — don't abort when a requested package can't be resolved (a
    typo, or a custom/vendor `.deb` that was never in the Debian sources). Instead,
    print a warning, skip that package, carry on with the rest, and show a summary

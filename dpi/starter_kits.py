@@ -126,6 +126,40 @@ def load_starter_kits(path: str = None) -> Dict[str, dict]:
     return data
 
 
+def _norm(s: str) -> str:
+    """Lowercase and strip non-alphanumerics, so 'Raspberry Pi' == 'raspberrypi'."""
+    return "".join(ch for ch in s.lower() if ch.isalnum())
+
+
+def match_machine(query: str, kits: Dict[str, dict]) -> str:
+    """
+    Resolve a user-typed machine name to an exact starter-kit key, forgivingly:
+    exact (case-insensitive) first, then normalized equality, then a unique
+    substring match. So 'pi', 'raspberry', or 'Raspberry Pi' all find the Pi kit.
+
+    Raises ValueError if nothing matches, or if a substring is ambiguous.
+    """
+    q = query.strip()
+    for name in kits:
+        if name.lower() == q.lower():
+            return name
+
+    nq = _norm(q)
+    exacts = [name for name in kits if _norm(name) == nq]
+    if len(exacts) == 1:
+        return exacts[0]
+
+    subs = [name for name in kits if nq and nq in _norm(name)]
+    if len(subs) == 1:
+        return subs[0]
+    if len(subs) > 1:
+        raise ValueError(f"machine {query!r} is ambiguous; matches: {subs}. Be more specific.")
+
+    raise ValueError(
+        f"machine {query!r} not found. Available: {list(kits)}."
+    )
+
+
 def merge_packages(user_packages: List[str], kit_packages: List[str]) -> List[str]:
     """
     Combine the user's requested packages with a kit's packages, preserving order
