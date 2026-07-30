@@ -304,3 +304,11 @@ python3 debian-package-installer.py --base-url http://archive.raspberrypi.com/de
 
  * **No signature or checksum verification.** The script does not fetch or validate `Release`/`InRelease` files, and does not verify GPG signatures or package hashes. Some examples below use plain HTTP. If integrity matters for your use case, prefer HTTPS mirrors and verify the downloaded set independently.
  * **Newest version always wins**, with no suite pinning. If you index a backports suite alongside a stable one, you may pull backported packages and their newer dependencies.
+
+## Author
+
+**Daniel Elharar**
+
+## License
+
+Released under the [MIT License](./LICENSE). © 2026 Daniel Elharar.
