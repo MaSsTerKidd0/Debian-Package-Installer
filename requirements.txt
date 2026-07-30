@@ -1,0 +1,6 @@
+# Core (CLI + resolver)
+python-debian
+requests
+
+# GUI only (gui.py). The command-line tools do not need this.
+customtkinter

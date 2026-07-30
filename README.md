@@ -22,8 +22,15 @@ This project provides a set of Python tools to download Debian packages and thei
 -   Python 3.x
 -   `python-debian` library
 -   `requests` library
+-   `customtkinter` library — **only for the GUI** (`gui.py`); the command-line tools don't need it
 
-You can install the required Python libraries using pip:
+You can install everything using pip:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Or just the core (no GUI):
 
 ```bash
 python3 -m pip install python-debian requests
@@ -61,8 +68,9 @@ continues past names that aren't in the sources — handy for typos or custom/ve
 `.deb`s — and lists what it skipped at the end. Untick it to stop on the first
 failure instead.
 
-The GUI needs nothing beyond the standard library (it uses Tkinter, which ships
-with Python) plus the two libraries in Requirements.
+The GUI is a modern CustomTkinter app (dark by default, with a light/dark toggle).
+It needs the `customtkinter` package — `pip install -r requirements.txt` covers it.
+The command-line tools work without it.
 
 ### Adding your own target OS
 
